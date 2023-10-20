@@ -22,21 +22,35 @@ classNames = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "trai
 tracker = Sort(max_age=20, min_hits=3,iou_threshold=0.3)
 
 # construct the argument parse and parse the arguments
-# ap = argparse.ArgumentParser()
-# ap.add_argument("-i", "--image", required=True,
-#     help="path to input image")
-# ap.add_argument("-y", "--yolo", required=True,
-#     help="base path to YOLO directory")
-# ap.add_argument("-c", "--confidence", type=float, default=0.5,
-#     help="minimum probability to filter weak detections")
-# ap.add_argument("-t", "--threshold", type=float, default=0.3,
-#     help="threshold when applying non-maxima suppression")
-# args = vars(ap.parse_args())
+ap = argparse.ArgumentParser()
+ap.add_argument("-i", "--input", required=True,
+    help="path to input image")
+ap.add_argument("-o", "--output", required=True,
+	help="path to output video")
+ap.add_argument("-c", "--confidence", type=float, default=0.3,
+    help="minimum probability to filter weak detections")
+ap.add_argument("-t", "--threshold", type=float, default=0.3,
+    help="threshold when applying non-maxima suppression")
+args = vars(ap.parse_args())
 
 # cap = cv2.VideoCapture(0) # For webcam
-cap = cv2.VideoCapture("Videos/stopped_vehicle_assignment.avi")
+# cap = cv2.VideoCapture("Videos/stopped_vehicle_assignment.avi")
+cap = cv2.VideoCapture(args["input"])
 cap.set(3,658) # width
 cap.set(4,420) # height
+writer = None
+
+width = int(cap.get(3))
+height = int(cap.get(4))
+
+
+# Define the codec and create a VideoWriter object
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out = cv2.VideoWriter(args["output"], fourcc, 30, (width, height))
+
+output_folder = os.path.dirname(args["output"])
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
 
 model = YOLO("Yolo-Weights/yolov8m.pt")
 # COLORS = np.random.randint(0, 255, size=(len(LABELS), 3), dtype="uint8")
@@ -46,6 +60,8 @@ positionTracker = {}
 
 while True:
     success, img = cap.read()
+    if not success:
+        break
     results = model(img,stream=True)
 
     detections = []
@@ -65,8 +81,8 @@ while True:
             if currentClass in ["car", "motorbike", "bus", "truck"] and conf > 0.3:
                 currentArray = [x1,y1,x2,y2,conf]
                 detections.append(currentArray)
-                # cvzone.cornerRect(img, (x1, y1, w, h), l=9, rt=2, colorR=(255, 0, 0))
-                # cvzone.putTextRect(img, f'{conf}', (max(0, x1), max(35, y1)), scale=2, thickness=2, offset=10)
+                cvzone.cornerRect(img, (x1, y1, w, h), l=9, rt=2, colorR=(0, 255, 0))
+                cvzone.putTextRect(img, f'{classNames[cls]} {conf}', (max(0, x1), max(35, y1)), scale=2, thickness=2, offset=10)
 
     resultsTracker = tracker.update(np.array(detections))
 
@@ -74,8 +90,6 @@ while True:
         x1,y1,x2,y2,id = map(int, result)
         currentPosition = [x1,y1,x2,y2]
         w, h = x2 - x1, y2 - y1
-        print(f"Current position: {id} {currentPosition}")
-        print(f"positionTracker: {positionTracker}")
         if id not in positionTracker:
             positionTracker[id] = currentPosition
         else:
@@ -84,10 +98,9 @@ while True:
             if (x1<previousPosition[0] + 20 and y1<previousPosition[1] + 20 and
                 x2<previousPosition[2] + 20 and y2<previousPosition[3] + 20) or distance <= 10 :
                 positionTracker[id] = currentPosition
-                cvzone.cornerRect(img, (x1, y1, w, h), l=9, rt=2, colorR=(255, 0, 0))
+                cvzone.cornerRect(img, (x1, y1, w, h), l=9, rt=3, colorR=(0, 0, 255))
                 cvzone.putTextRect(img, f'{id}', (max(0, x1), max(35, y1)),
                                    scale=2, thickness=2, offset=10)
-
 
     ids_to_remove = []
     for id, currentPosition in positionTracker.items():
@@ -103,32 +116,19 @@ while True:
     for id in ids_to_remove:
         del positionTracker[id]
 
+    if writer is None:
+        # initialize our video writer
+        fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+        writer = cv2.VideoWriter(args["output"], fourcc, 30,
+                                 (img.shape[1], img.shape[0]), True)
+    # write the output frame to disk
+    writer.write(img)
 
+    # if img.shape[0] != 0 and img.shape[1] !=0:
+    #     cv2.imshow("Image",img)
+    # cv2.waitKey(1) # 1ms delay
 
-                # if row[0] == id and (x1>=row[1] or y1>=row[2] or
-                #         x2>=row[3] or y2>=row[4]):
-                #     # print(f"row[0]: {row[0]} and id: {id}")
-                #     if x1 < row[1] + 10 and y1 < row[2] + 10 and \
-                #         x2 < row[3] + 10 and y2 < row[4] + 10:
-                #         cvzone.cornerRect(img, (x1, y1, w, h), l=9,rt=2,colorR=(255,0,0))
-                #         cvzone.putTextRect(img, f'{id}', (max(0, x1), max(35, y1)),
-                #                            scale=2, thickness=2, offset=10)
-                #     else:
-                #         row[1],row[2],row[3],row[4] = x1,y1,x2,y2
-
-
-
-        # if id in positionTracker:
-
-        # cvzone.cornerRect(img, (x1, y1, w, h), l=9, rt=2, colorR=(255, 0, 0))
-        # cvzone.putTextRect(img, f'{id}', (max(0, x1), max(35, y1)),
-        #                    scale=2, thickness=2, offset=10)
-
-
-
-    if img.shape[0] != 0 and img.shape[1] !=0:
-        cv2.imshow("Image",img)
-    cv2.waitKey(1) # 1ms delay
-
-
-
+# Release the video capture and writer
+cap.release()
+out.release()
+cv2.destroyAllWindows()
